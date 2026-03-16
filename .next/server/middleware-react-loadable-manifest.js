@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"app\\\\page.js -> chart.js/auto\":{\"id\":\"app\\\\page.js -> chart.js/auto\",\"files\":[\"static/chunks/_app-pages-browser_node_modules_chart_js_auto_auto_js.js\"]}}"
