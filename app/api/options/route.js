@@ -1,10 +1,11 @@
 /**
  * /app/api/options/route.js
- * KRX OpenAPI — GET + AUTH_KEY 헤더 방식
- * API: https://openapi.krx.co.kr/svc/apis/drv/opt_bydd_trd
+ * Node.js Runtime — KRX OpenAPI 연동
  */
 
-export const runtime = 'edge';
+// Edge 대신 Node.js 런타임 사용 (KRX 서버 접근 허용)
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const AUTH_KEY = '74D1B99DFBF345BBA3FB4476510A4BED4C78D13A';
 const KRX_URL  = 'https://openapi.krx.co.kr/svc/apis/drv/opt_bydd_trd';
@@ -23,22 +24,31 @@ function getToday() {
 
 async function fetchKRX(basDd) {
   const url = `${KRX_URL}?basDd=${basDd}`;
+  console.log('[KRX] Fetching:', url);
   const res = await fetch(url, {
     method: 'GET',
     headers: {
       'AUTH_KEY': AUTH_KEY,
       'User-Agent': 'Mozilla/5.0',
+      'Accept': 'application/json',
     },
+    cache: 'no-store',
   });
-  if (!res.ok) throw new Error('KRX HTTP ' + res.status);
+  console.log('[KRX] Status:', res.status);
+  if (!res.ok) {
+    const text = await res.text();
+    console.log('[KRX] Error body:', text);
+    throw new Error('KRX HTTP ' + res.status);
+  }
   const json = await res.json();
+  console.log('[KRX] Rows:', json?.OutBlock_1?.length || 0);
   return json?.OutBlock_1 || [];
 }
 
 async function fetchKospi200Index() {
   try {
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EKS200?interval=1d&range=5d';
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
     if (!res.ok) throw new Error('Yahoo ' + res.status);
     const data = await res.json();
     const meta = data?.chart?.result?.[0]?.meta;
@@ -55,7 +65,8 @@ async function fetchKospi200Index() {
       low:       meta.regularMarketDayLow  || price,
       volume:    meta.regularMarketVolume  || 0,
     };
-  } catch {
+  } catch (e) {
+    console.log('[Yahoo] Error:', e.message);
     return { ok: false, value: 876.62, change: 0, changePct: 0, high: 876.62, low: 876.62, volume: 0 };
   }
 }
@@ -66,26 +77,21 @@ function parseRows(rows) {
     const parts  = (row.ISU_NM || '').split(' ');
     const strike = parseFloat(parts[parts.length - 1]);
     if (!strike || isNaN(strike)) continue;
-
     if (!map[strike]) {
       map[strike] = { strike, callOI: 0, putOI: 0, callVol: 0, putVol: 0, callOIChg: 0, putOIChg: 0 };
     }
     const isCall = (row.RGHT_TP_NM || '').toUpperCase() === 'CALL';
     const oi  = parseInt((row.ACC_OPNINT_QTY || '0').replace(/,/g, ''), 10);
     const vol = parseInt((row.ACC_TRDVOL     || '0').replace(/,/g, ''), 10);
-
     if (isCall) { map[strike].callOI = oi; map[strike].callVol = vol; }
     else        { map[strike].putOI  = oi; map[strike].putVol  = vol; }
   }
-
   const strikes = Object.values(map)
     .filter(s => s.callOI + s.putOI > 0)
     .sort((a, b) => a.strike - b.strike);
-
   const totalCallOI = strikes.reduce((a, s) => a + s.callOI, 0);
   const totalPutOI  = strikes.reduce((a, s) => a + s.putOI,  0);
   const pcr = totalCallOI > 0 ? totalPutOI / totalCallOI : 0;
-
   return { strikes, summary: { totalCallOI, totalPutOI, pcr } };
 }
 
@@ -115,13 +121,11 @@ export async function GET(request) {
 
   const [index, rows] = await Promise.all([
     fetchKospi200Index(),
-    fetchKRX(basDd).catch(() => []),
+    fetchKRX(basDd).catch(e => { console.log('[KRX] Catch:', e.message); return []; }),
   ]);
 
   const krxOk = rows.length > 0;
-  const { strikes, summary } = krxOk
-    ? parseRows(rows)
-    : generateFallback(index.value);
+  const { strikes, summary } = krxOk ? parseRows(rows) : generateFallback(index.value);
 
   const rand = (a, b) => a + Math.random() * (b - a);
   const investors = {
