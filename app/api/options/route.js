@@ -1,15 +1,14 @@
 /**
  * /app/api/options/route.js
- * KRX OpenAPI — 정확한 URL 사용
+ * KRX OpenAPI 실시간 연동
+ * Host: openapi.krx.co.kr
  */
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const AUTH_KEY = '74D1B99DFBF345BBA3FB4476510A4BED4C78D13A';
-
-// 샘플 예제에서 확인한 실제 URL
-const KRX_URL = 'https://data-dbg.krx.co.kr/svc/apis/drv/opt_bydd_trd';
+const KRX_URL  = 'https://openapi.krx.co.kr/svc/apis/drv/opt_bydd_trd';
 
 function getToday() {
   const d = new Date();
@@ -38,7 +37,7 @@ async function fetchKRX(basDd) {
   console.log('[KRX] Status:', res.status);
   if (!res.ok) {
     const text = await res.text();
-    console.log('[KRX] Error body:', text.slice(0, 200));
+    console.log('[KRX] Error body:', text.slice(0, 300));
     throw new Error('KRX HTTP ' + res.status);
   }
   const json = await res.json();
