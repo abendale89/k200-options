@@ -1,14 +1,15 @@
 /**
  * /app/api/options/route.js
- * Node.js Runtime — KRX OpenAPI 연동
+ * KRX OpenAPI — 정확한 URL 사용
  */
 
-// Edge 대신 Node.js 런타임 사용 (KRX 서버 접근 허용)
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const AUTH_KEY = '74D1B99DFBF345BBA3FB4476510A4BED4C78D13A';
-const KRX_URL  = 'https://openapi.krx.co.kr/svc/apis/drv/opt_bydd_trd';
+
+// 샘플 예제에서 확인한 실제 URL
+const KRX_URL = 'https://data-dbg.krx.co.kr/svc/apis/drv/opt_bydd_trd';
 
 function getToday() {
   const d = new Date();
@@ -37,7 +38,7 @@ async function fetchKRX(basDd) {
   console.log('[KRX] Status:', res.status);
   if (!res.ok) {
     const text = await res.text();
-    console.log('[KRX] Error body:', text);
+    console.log('[KRX] Error body:', text.slice(0, 200));
     throw new Error('KRX HTTP ' + res.status);
   }
   const json = await res.json();
@@ -91,8 +92,7 @@ function parseRows(rows) {
     .sort((a, b) => a.strike - b.strike);
   const totalCallOI = strikes.reduce((a, s) => a + s.callOI, 0);
   const totalPutOI  = strikes.reduce((a, s) => a + s.putOI,  0);
-  const pcr = totalCallOI > 0 ? totalPutOI / totalCallOI : 0;
-  return { strikes, summary: { totalCallOI, totalPutOI, pcr } };
+  return { strikes, summary: { totalCallOI, totalPutOI, pcr: totalCallOI > 0 ? totalPutOI / totalCallOI : 0 } };
 }
 
 function generateFallback(basePrice) {
